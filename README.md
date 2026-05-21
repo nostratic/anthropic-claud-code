@@ -70,7 +70,7 @@ Open [http://localhost:3000](http://localhost:3000) and register an account.
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | SQLite path — `file:./dev.db` for local dev |
+| `DATABASE_URL` | SQLite path — `file:./prisma/dev.db` for local dev (Prisma creates it here) |
 | `NEXTAUTH_SECRET` | Random secret for JWT signing |
 | `NEXTAUTH_URL` | App URL — `http://localhost:3000` for local dev |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key for AI roadmap suggestions |
