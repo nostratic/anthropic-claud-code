@@ -1,0 +1,1053 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brick Roadmap Planner</title>
+<style>
+  :root {
+    --panel: #ffffff;
+    --panel-border: #e3e5ea;
+    --ink: #1d2230;
+    --muted: #6b7283;
+    --accent: #3b6ef5;
+    --board-bg: #2f3b52;
+    --grid-color: #b8bcc6;
+    --grid-thickness: 1px;
+    --cell-w: 170px;
+    --cell-h: 100px;
+    --gap: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: #f3f4f7;
+    display: grid;
+    grid-template-columns: 330px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "top top" "side main";
+  }
+  header {
+    grid-area: top;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  header .spacer { flex: 1; }
+  aside {
+    grid-area: side;
+    overflow-y: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--panel-border);
+    padding: 12px 14px 40px;
+  }
+  main { grid-area: main; overflow: auto; position: relative; }
+  section.group { border-bottom: 1px solid var(--panel-border); padding: 10px 0 14px; }
+  section.group:last-child { border-bottom: 0; }
+  section.group h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 0 0 8px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label { flex: 1; }
+  .row input[type=range] { flex: 1.3; }
+  .row output { width: 44px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  input[type=color] { width: 36px; height: 26px; padding: 0; border: 1px solid var(--panel-border); border-radius: 4px; background: none; }
+  select, input[type=number], textarea {
+    font: inherit; padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 6px; background: #fff; color: var(--ink);
+  }
+  textarea { width: 100%; min-height: 70px; resize: vertical; }
+  button {
+    font: inherit; cursor: pointer;
+    padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--panel-border); background: #fff; color: var(--ink);
+  }
+  button:hover { border-color: #c3c7d0; background: #f7f8fa; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.05); }
+  button.danger { color: #c62828; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pad { display: grid; grid-template-columns: repeat(3, 36px); gap: 4px; justify-content: start; }
+  .pad button { padding: 4px 0; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .file-btn { position: relative; overflow: hidden; }
+  .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  #status { color: var(--muted); font-size: 13px; }
+  .disabled { opacity: .45; pointer-events: none; }
+
+  /* ---------- board ---------- */
+  #boardWrap { padding: 24px; min-width: max-content; min-height: 100%; }
+  #board {
+    position: relative;
+    background-color: var(--board-bg);
+    background-image:
+      linear-gradient(to right, var(--grid-color) var(--grid-thickness), transparent var(--grid-thickness)),
+      linear-gradient(to bottom, var(--grid-color) var(--grid-thickness), transparent var(--grid-thickness));
+    background-size: var(--cell-w) var(--cell-h);
+    box-shadow: inset calc(-1 * var(--grid-thickness)) calc(-1 * var(--grid-thickness)) 0 var(--grid-color), 0 4px 20px rgba(0,0,0,.15);
+    border-radius: 4px;
+    user-select: none;
+  }
+  #board.no-grid { background-image: none; box-shadow: 0 4px 20px rgba(0,0,0,.15); }
+  .drop-target {
+    position: absolute; pointer-events: none;
+    border: 2px dashed var(--accent);
+    background: rgba(59,110,245,.15);
+    border-radius: 6px;
+  }
+  .brick {
+    position: absolute;
+    border-radius: 4px;
+    background-color: #fbfbf8;
+    background-size: 100% 100%;
+    box-shadow: 0 2px 4px rgba(0,0,0,.25), 0 6px 14px rgba(0,0,0,.18);
+    cursor: grab;
+    transition: left .18s ease, top .18s ease, box-shadow .15s;
+    touch-action: none;
+    overflow: hidden;
+  }
+  .brick.clean { background-image: none !important; }
+  .brick.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .brick.dragging {
+    transition: none; cursor: grabbing; z-index: 50; opacity: .92;
+    box-shadow: 0 10px 28px rgba(0,0,0,.4);
+  }
+  .brick .text {
+    position: absolute; inset: 6px;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    overflow: hidden;
+    word-break: break-word; overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    line-height: 1.15;
+    outline: none;
+    font-weight: 600;
+  }
+  .brick .text[contenteditable=true] { cursor: text; background: rgba(255,255,255,.55); border-radius: 3px; }
+  .brick .text:empty::before { content: attr(data-placeholder); color: rgba(0,0,0,.35); font-weight: 400; font-size: 13px; }
+  /* On photo cut-outs, only hint on the selected brick so the handwriting stays readable. */
+  .brick:not(.clean):not(.selected) .text:empty::before { content: none; }
+  /* Once a photo brick has typed text, soften the photo underneath so the text reads clearly. */
+  .brick:not(.clean).has-text .text { background: rgba(255,255,255,.92); border-radius: 3px; }
+
+  /* ---------- detection preview ---------- */
+  #previewBox { margin-top: 8px; }
+  #previewBox canvas { width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); display: block; }
+
+  #emptyState {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); text-align: center; pointer-events: none;
+  }
+  #emptyState div { max-width: 420px; }
+
+  @media (max-width: 760px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "top" "side" "main"; }
+    aside { max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--panel-border); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧱 Brick Roadmap Planner</h1>
+  <span class="file-btn"><button class="primary">Upload roadmap photo</button><input id="fileInput" type="file" accept="image/*"></span>
+  <button id="sampleBtn" title="Generate a sample photo of paper bricks to try the detector">Try a sample photo</button>
+  <span id="status">Upload a photo of white paper bricks to begin.</span>
+  <span class="spacer"></span>
+  <button id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+  <button id="exportPngBtn">Export PNG</button>
+  <button id="saveJsonBtn">Save JSON</button>
+  <span class="file-btn"><button>Load JSON</button><input id="loadJsonInput" type="file" accept="application/json,.json"></span>
+</header>
+
+<aside>
+  <section class="group">
+    <h2>Detection</h2>
+    <div class="row"><label for="autoThr">Auto white threshold</label><input id="autoThr" type="checkbox" checked></div>
+    <div class="row"><label for="thr">Brightness ≥</label><input id="thr" type="range" min="80" max="250" value="170" disabled><output id="thrOut">170</output></div>
+    <div class="row"><label for="sat">Max colour tint</label><input id="sat" type="range" min="10" max="140" value="60"><output id="satOut">60</output></div>
+    <div class="row"><label for="sep">Separate touching</label><input id="sep" type="range" min="0" max="8" value="2"><output id="sepOut">2</output></div>
+    <div class="row"><label for="minArea">Min brick size %</label><input id="minArea" type="range" min="0.02" max="3" step="0.02" value="0.15"><output id="minAreaOut">0.15</output></div>
+    <div class="btns"><button id="redetectBtn" class="disabled">Re-detect</button></div>
+    <div id="previewBox" hidden><canvas id="previewCanvas"></canvas><p class="hint">Green boxes = detected bricks.</p></div>
+  </section>
+
+  <section class="group">
+    <h2>Board</h2>
+    <div class="row"><label for="bgColor">Background colour</label><input id="bgColor" type="color" value="#2f3b52"></div>
+    <div class="row"><label for="brickStyle">Brick look</label>
+      <select id="brickStyle"><option value="photo">Photo cut-out</option><option value="clean">Clean white</option></select></div>
+    <div class="row"><label for="cellW">Cell width</label><input id="cellW" type="range" min="80" max="320" value="170"><output id="cellWOut">170</output></div>
+    <div class="row"><label for="cellH">Cell height</label><input id="cellH" type="range" min="50" max="240" value="100"><output id="cellHOut">100</output></div>
+    <div class="row"><label for="gap">Brick padding</label><input id="gap" type="range" min="0" max="30" value="8"><output id="gapOut">8</output></div>
+    <div class="row"><label>Columns / rows</label>
+      <input id="colsIn" type="number" min="1" max="60" value="8" style="width:56px">
+      <input id="rowsIn" type="number" min="1" max="60" value="5" style="width:56px"></div>
+    <div class="row"><label for="pushMode">When dropping on a brick, push</label></div>
+    <div class="row"><select id="pushMode" style="flex:1">
+      <option value="right">→ along the row (right)</option>
+      <option value="down">↓ down the column</option>
+      <option value="flow">→ reading order (wraps to next row)</option>
+    </select></div>
+  </section>
+
+  <section class="group">
+    <h2>Grid lines</h2>
+    <div class="row"><label for="showGrid">Show grid</label><input id="showGrid" type="checkbox" checked></div>
+    <div class="row"><label for="gridColor">Grid colour</label><input id="gridColor" type="color" value="#b8bcc6"></div>
+    <div class="row"><label for="gridThick">Line thickness</label><input id="gridThick" type="range" min="0.5" max="6" step="0.5" value="1"><output id="gridThickOut">1</output></div>
+  </section>
+
+  <section class="group">
+    <h2>Selected brick</h2>
+    <div id="brickPanel" class="disabled">
+      <textarea id="brickText" placeholder="Click a brick, then type here or directly on the brick"></textarea>
+      <div class="row"><label for="fontColor">Font colour</label><input id="fontColor" type="color" value="#000000"></div>
+      <div class="row"><label for="autoFont">Auto-size text to fit</label><input id="autoFont" type="checkbox" checked></div>
+      <div class="row"><label for="fontSize">Font size</label><input id="fontSize" type="range" min="8" max="72" value="18" disabled><output id="fontSizeOut">18</output></div>
+      <div class="row"><label>Move on X / Y axis</label></div>
+      <div class="pad">
+        <span></span><button data-move="0,-1" title="Up (↑)">↑</button><span></span>
+        <button data-move="-1,0" title="Left (←)">←</button><span></span><button data-move="1,0" title="Right (→)">→</button>
+        <span></span><button data-move="0,1" title="Down (↓)">↓</button><span></span>
+      </div>
+      <div class="btns" style="margin-top:8px">
+        <button id="dupBtn">Duplicate</button>
+        <button id="delBtn" class="danger">Delete</button>
+      </div>
+      <p class="hint">Arrow keys move the selected brick one cell. Moving onto another brick pushes it to the next cell.</p>
+    </div>
+  </section>
+
+  <section class="group">
+    <h2>Bricks</h2>
+    <div class="btns">
+      <button id="addBrickBtn">+ Add brick</button>
+      <button id="clearBtn" class="danger">Clear board</button>
+    </div>
+    <p class="hint">Drag a brick to any cell. Click a brick to edit its text. Double-click an empty cell to add a brick there.</p>
+  </section>
+</aside>
+
+<main>
+  <div id="boardWrap"><div id="board"></div></div>
+  <div id="emptyState"><div>
+    <p><strong>No bricks yet.</strong></p>
+    <p>Upload a photo of your paper roadmap (white paper bricks on a darker surface works best), or try the sample photo.</p>
+  </div></div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  // ------------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  const board = $('board');
+  const STORAGE_KEY = 'brick-roadmap-planner-v1';
+
+  let state = defaultState();
+  let images = {};            // brick id -> dataURL of photo cut-out
+  let sourceImage = null;     // HTMLImageElement of uploaded photo
+  let selectedId = null;
+  let editingId = null;
+  const history = [];
+
+  function defaultState() {
+    return {
+      cols: 8, rows: 5,
+      cellW: 170, cellH: 100, gap: 8,
+      bg: '#2f3b52', gridColor: '#b8bcc6', gridThickness: 1, showGrid: true,
+      brickStyle: 'photo', pushMode: 'right',
+      bricks: [] // {id, r, c, text, color, autoFont, fontSize}
+    };
+  }
+  let idSeq = 1;
+  const newId = () => 'b' + Date.now().toString(36) + (idSeq++);
+
+  // ------------------------------------------------------------------
+  // History / persistence
+  // ------------------------------------------------------------------
+  function snapshot() {
+    history.push(JSON.stringify(state));
+    if (history.length > 100) history.shift();
+  }
+  function undo() {
+    if (!history.length) return;
+    state = JSON.parse(history.pop());
+    if (!state.bricks.some(b => b.id === selectedId)) selectedId = null;
+    editingId = null;
+    syncControls(); render(); persist();
+  }
+  let persistTimer = null;
+  function persist() {
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, images })); }
+      catch (e) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, images: {} })); } catch (_) {}
+      }
+    }, 250);
+  }
+  function restore() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.state && Array.isArray(data.state.bricks)) {
+        state = Object.assign(defaultState(), data.state);
+        images = data.images || {};
+      }
+    } catch (_) {}
+  }
+
+  // ------------------------------------------------------------------
+  // Grid helpers + push logic
+  // ------------------------------------------------------------------
+  const brickAt = (r, c) => state.bricks.find(b => b.r === r && b.c === c);
+  const byId = (id) => state.bricks.find(b => b.id === id);
+
+  function nextCell(r, c) {
+    switch (state.pushMode) {
+      case 'down': return [r + 1, c];
+      case 'flow': return c + 1 < state.cols ? [r, c + 1] : [r + 1, 0];
+      default: return [r, c + 1];
+    }
+  }
+  function ensureFits(r, c) {
+    if (c >= state.cols) state.cols = c + 1;
+    if (r >= state.rows) state.rows = r + 1;
+  }
+
+  /** Place brick `b` into (r,c). If occupied, the occupant (and any
+   *  contiguous chain behind it) is pushed one cell in the push direction. */
+  function placeWithPush(b, r, c) {
+    r = Math.max(0, r); c = Math.max(0, c);
+    b.r = -1; b.c = -1; // lift brick out of the grid
+    const chain = [];
+    let cr = r, cc = c, occ;
+    while ((occ = brickAt(cr, cc))) {
+      chain.push(occ);
+      [cr, cc] = nextCell(cr, cc);
+    }
+    // shift from the end of the chain backwards
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const [nr, nc] = nextCell(chain[i].r, chain[i].c);
+      chain[i].r = nr; chain[i].c = nc;
+      ensureFits(nr, nc);
+    }
+    b.r = r; b.c = c;
+    ensureFits(r, c);
+  }
+
+  function moveBrick(id, r, c) {
+    const b = byId(id);
+    if (!b || (b.r === r && b.c === c)) return;
+    snapshot();
+    placeWithPush(b, r, c);
+    render(); persist();
+  }
+
+  function firstFreeCell() {
+    for (let r = 0; r < state.rows; r++)
+      for (let c = 0; c < state.cols; c++)
+        if (!brickAt(r, c)) return [r, c];
+    return [state.rows, 0];
+  }
+
+  function addBrick(r, c, extra = {}) {
+    snapshot();
+    if (r == null) [r, c] = firstFreeCell();
+    const b = Object.assign({ id: newId(), r: -1, c: -1, text: '', color: '#000000', autoFont: true, fontSize: 18 }, extra);
+    state.bricks.push(b);
+    placeWithPush(b, r, c);
+    selectedId = b.id;
+    render(); persist();
+    return b;
+  }
+
+  // ------------------------------------------------------------------
+  // Rendering
+  // ------------------------------------------------------------------
+  const root = document.documentElement.style;
+  function applyBoardVars() {
+    root.setProperty('--board-bg', state.bg);
+    root.setProperty('--grid-color', state.gridColor);
+    root.setProperty('--grid-thickness', state.gridThickness + 'px');
+    root.setProperty('--cell-w', state.cellW + 'px');
+    root.setProperty('--cell-h', state.cellH + 'px');
+    board.classList.toggle('no-grid', !state.showGrid);
+    board.style.width = state.cols * state.cellW + 'px';
+    board.style.height = state.rows * state.cellH + 'px';
+  }
+
+  const brickEls = new Map();
+  function render() {
+    applyBoardVars();
+    $('colsIn').value = state.cols;
+    $('rowsIn').value = state.rows;
+    $('emptyState').style.display = state.bricks.length ? 'none' : '';
+
+    const alive = new Set();
+    for (const b of state.bricks) {
+      alive.add(b.id);
+      let el = brickEls.get(b.id);
+      if (!el) { el = createBrickEl(b); brickEls.set(b.id, el); board.appendChild(el); }
+      layoutBrickEl(el, b);
+    }
+    for (const [id, el] of brickEls) if (!alive.has(id)) { el.remove(); brickEls.delete(id); }
+    syncBrickPanel();
+  }
+
+  function createBrickEl(b) {
+    const el = document.createElement('div');
+    el.className = 'brick';
+    el.dataset.id = b.id;
+    const t = document.createElement('div');
+    t.className = 'text';
+    t.dataset.placeholder = 'Click to add text';
+    el.appendChild(t);
+    el.addEventListener('pointerdown', onBrickPointerDown);
+    t.addEventListener('input', () => {
+      const br = byId(b.id); if (!br) return;
+      br.text = t.innerText.replace(/\n$/, '');
+      if (selectedId === br.id) $('brickText').value = br.text;
+      el.classList.toggle('has-text', !!br.text);
+      fitText(el, br); persist();
+    });
+    t.addEventListener('blur', () => { if (editingId === b.id) stopEditing(); });
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); t.blur(); }
+      e.stopPropagation();
+    });
+    return el;
+  }
+
+  function layoutBrickEl(el, b) {
+    const g = state.gap;
+    el.style.left = (b.c * state.cellW + g) + 'px';
+    el.style.top = (b.r * state.cellH + g) + 'px';
+    el.style.width = Math.max(10, state.cellW - 2 * g) + 'px';
+    el.style.height = Math.max(10, state.cellH - 2 * g) + 'px';
+    const img = images[b.id];
+    el.style.backgroundImage = img ? `url("${img}")` : 'none';
+    el.classList.toggle('clean', state.brickStyle === 'clean');
+    el.classList.toggle('selected', b.id === selectedId);
+    el.classList.toggle('has-text', !!b.text);
+    const t = el.firstChild;
+    if (editingId !== b.id && t.innerText !== b.text) t.innerText = b.text;
+    t.style.color = b.color;
+    fitText(el, b);
+  }
+
+  /** Auto-size: binary search the largest font that fits inside the brick. */
+  function fitText(el, b) {
+    const t = el.firstChild;
+    if (!b.autoFont) { t.style.fontSize = b.fontSize + 'px'; return; }
+    if (!b.text) { t.style.fontSize = '14px'; return; }
+    // Measure with a block layout so overflow is detectable.
+    let lo = 6, hi = Math.max(8, Math.min(96, Math.floor(el.clientHeight * 0.9)));
+    t.style.alignItems = 'flex-start';
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      t.style.fontSize = mid + 'px';
+      if (t.scrollHeight <= t.clientHeight + 1 && t.scrollWidth <= t.clientWidth + 1) lo = mid; else hi = mid - 1;
+    }
+    t.style.fontSize = lo + 'px';
+    t.style.alignItems = '';
+    b._fitSize = lo;
+  }
+
+  // ------------------------------------------------------------------
+  // Selection & editing
+  // ------------------------------------------------------------------
+  function select(id) {
+    selectedId = id;
+    for (const [bid, el] of brickEls) el.classList.toggle('selected', bid === id);
+    syncBrickPanel();
+  }
+  function startEditing(id) {
+    const el = brickEls.get(id); if (!el) return;
+    editingId = id;
+    const t = el.firstChild;
+    t.contentEditable = 'true';
+    t.focus();
+    const range = document.createRange();
+    range.selectNodeContents(t); range.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  }
+  function stopEditing() {
+    const el = brickEls.get(editingId);
+    if (el) el.firstChild.contentEditable = 'false';
+    editingId = null;
+  }
+
+  function syncBrickPanel() {
+    const b = byId(selectedId);
+    $('brickPanel').classList.toggle('disabled', !b);
+    if (!b) return;
+    if (document.activeElement !== $('brickText')) $('brickText').value = b.text;
+    $('fontColor').value = b.color;
+    $('autoFont').checked = b.autoFont;
+    $('fontSize').disabled = b.autoFont;
+    const fs = b.autoFont ? (b._fitSize || b.fontSize) : b.fontSize;
+    $('fontSize').value = fs; $('fontSizeOut').textContent = fs;
+  }
+
+  // ------------------------------------------------------------------
+  // Drag & drop (pointer events: mouse, pen, touch)
+  // ------------------------------------------------------------------
+  let drag = null;
+  let dropMarker = null;
+
+  function cellFromPoint(clientX, clientY) {
+    const rect = board.getBoundingClientRect();
+    const c = Math.floor((clientX - rect.left) / state.cellW);
+    const r = Math.floor((clientY - rect.top) / state.cellH);
+    return [Math.max(0, r), Math.max(0, c)];
+  }
+
+  function onBrickPointerDown(e) {
+    const el = e.currentTarget;
+    const id = el.dataset.id;
+    if (editingId === id) return; // let the user place the caret / select text
+    if (e.button !== 0) return;
+    if (editingId) { brickEls.get(editingId).firstChild.blur(); }
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    drag = { id, el, startX: e.clientX, startY: e.clientY, offX: e.clientX - rect.left, offY: e.clientY - rect.top, moved: false, pointerId: e.pointerId };
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener('pointermove', onDragMove);
+    el.addEventListener('pointerup', onDragEnd);
+    el.addEventListener('pointercancel', onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      drag.el.classList.add('dragging');
+      select(drag.id);
+      dropMarker = document.createElement('div');
+      dropMarker.className = 'drop-target';
+      board.appendChild(dropMarker);
+    }
+    const brect = board.getBoundingClientRect();
+    drag.el.style.left = (e.clientX - brect.left - drag.offX) + 'px';
+    drag.el.style.top = (e.clientY - brect.top - drag.offY) + 'px';
+    const [r, c] = cellFromPoint(e.clientX, e.clientY);
+    Object.assign(dropMarker.style, {
+      left: (c * state.cellW + 2) + 'px', top: (r * state.cellH + 2) + 'px',
+      width: (state.cellW - 4) + 'px', height: (state.cellH - 4) + 'px'
+    });
+  }
+
+  function onDragEnd(e) {
+    if (!drag) return;
+    const { el, id, moved } = drag;
+    el.removeEventListener('pointermove', onDragMove);
+    el.removeEventListener('pointerup', onDragEnd);
+    el.removeEventListener('pointercancel', onDragEnd);
+    el.classList.remove('dragging');
+    if (dropMarker) { dropMarker.remove(); dropMarker = null; }
+    drag = null;
+    if (moved && e.type === 'pointerup') {
+      const [r, c] = cellFromPoint(e.clientX, e.clientY);
+      const b = byId(id);
+      if (b && (b.r !== r || b.c !== c)) moveBrick(id, r, c);
+      else render();
+    } else if (moved) {
+      render();
+    } else {
+      // A plain click: select and start typing on the brick.
+      select(id);
+      startEditing(id);
+    }
+  }
+
+  board.addEventListener('pointerdown', (e) => {
+    if (e.target === board) { if (editingId) brickEls.get(editingId).firstChild.blur(); select(null); }
+  });
+  board.addEventListener('dblclick', (e) => {
+    if (e.target !== board) return;
+    const [r, c] = cellFromPoint(e.clientX, e.clientY);
+    const b = addBrick(r, c);
+    startEditing(b.id);
+  });
+
+  // ------------------------------------------------------------------
+  // Keyboard
+  // ------------------------------------------------------------------
+  function nudgeSelected(dx, dy) {
+    const b = byId(selectedId); if (!b) return;
+    const r = b.r + dy, c = b.c + dx;
+    if (r < 0 || c < 0) return;
+    moveBrick(b.id, r, c);
+  }
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && tag !== 'textarea' && tag !== 'input') {
+      e.preventDefault(); undo(); return;
+    }
+    if (tag === 'textarea' || tag === 'input' || tag === 'select' || editingId) return;
+    const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (map[e.key] && selectedId) { e.preventDefault(); nudgeSelected(...map[e.key]); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { e.preventDefault(); deleteSelected(); }
+    else if (e.key === 'Enter' && selectedId) { e.preventDefault(); startEditing(selectedId); }
+  });
+
+  function deleteSelected() {
+    if (!selectedId) return;
+    snapshot();
+    state.bricks = state.bricks.filter(b => b.id !== selectedId);
+    delete images[selectedId];
+    selectedId = null; editingId = null;
+    render(); persist();
+  }
+
+  // ------------------------------------------------------------------
+  // Image → brick detection
+  // ------------------------------------------------------------------
+  const MAX_PROC = 1000; // processing resolution (long edge)
+
+  function otsu(hist, total) {
+    let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+    let sumB = 0, wB = 0, best = 0, thr = 128;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]; if (!wB) continue;
+      const wF = total - wB; if (!wF) break;
+      sumB += t * hist[t];
+      const mB = sumB / wB, mF = (sum - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; thr = t; }
+    }
+    return thr;
+  }
+
+  // Separable min/max filter (erode/dilate) on a binary mask.
+  function morph(mask, w, h, rad, isErode) {
+    if (rad <= 0) return mask;
+    const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+    const pass = (src, dst, horizontal) => {
+      const n = horizontal ? w : h, m = horizontal ? h : w;
+      for (let j = 0; j < m; j++) {
+        // running count of set pixels in window
+        let count = 0;
+        const idx = (i) => horizontal ? j * w + i : i * w + j;
+        for (let i = 0; i < Math.min(rad, n); i++) count += src[idx(i)];
+        for (let i = 0; i < n; i++) {
+          const add = i + rad, rem = i - rad - 1;
+          if (add < n) count += src[idx(add)];
+          if (rem >= 0) count -= src[idx(rem)];
+          const win = Math.min(n - 1, i + rad) - Math.max(0, i - rad) + 1;
+          dst[idx(i)] = isErode ? (count === win ? 1 : 0) : (count > 0 ? 1 : 0);
+        }
+      }
+    };
+    pass(mask, tmp, true); pass(tmp, out, false);
+    return out;
+  }
+
+  function detectBricks(img, opts) {
+    const scale = Math.min(1, MAX_PROC / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const px = ctx.getImageData(0, 0, w, h).data;
+
+    const N = w * h;
+    const bright = new Uint8Array(N), sat = new Uint8Array(N);
+    const hist = new Uint32Array(256);
+    for (let i = 0, p = 0; i < N; i++, p += 4) {
+      const r = px[p], g = px[p + 1], b = px[p + 2];
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      const v = (r + g + b) / 3 | 0;
+      bright[i] = v; sat[i] = mx - mn; hist[v]++;
+    }
+    let thr = opts.threshold;
+    if (opts.auto) thr = Math.max(110, Math.min(235, otsu(hist, N) + 10));
+
+    let mask = new Uint8Array(N);
+    for (let i = 0; i < N; i++) mask[i] = (bright[i] >= thr && sat[i] <= opts.maxSat) ? 1 : 0;
+
+    // Opening separates bricks that touch and removes speckles,
+    // closing fills small holes left by handwriting.
+    mask = morph(morph(mask, w, h, opts.sep, true), w, h, opts.sep, false);
+    mask = morph(morph(mask, w, h, 3, false), w, h, 3, true);
+
+    // Connected components (4-connectivity)
+    const labels = new Int32Array(N);
+    const comps = [];
+    const stack = new Int32Array(N);
+    let label = 0;
+    for (let start = 0; start < N; start++) {
+      if (!mask[start] || labels[start]) continue;
+      label++;
+      let sp = 0; stack[sp++] = start; labels[start] = label;
+      let minX = w, minY = h, maxX = 0, maxY = 0, area = 0;
+      while (sp) {
+        const i = stack[--sp];
+        const x = i % w, y = (i / w) | 0;
+        area++;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (x > 0 && mask[i - 1] && !labels[i - 1]) { labels[i - 1] = label; stack[sp++] = i - 1; }
+        if (x < w - 1 && mask[i + 1] && !labels[i + 1]) { labels[i + 1] = label; stack[sp++] = i + 1; }
+        if (y > 0 && mask[i - w] && !labels[i - w]) { labels[i - w] = label; stack[sp++] = i - w; }
+        if (y < h - 1 && mask[i + w] && !labels[i + w]) { labels[i + w] = label; stack[sp++] = i + w; }
+      }
+      comps.push({ minX, minY, maxX, maxY, area });
+    }
+
+    const minArea = N * opts.minAreaPct / 100;
+    const boxes = comps.filter(cmp => {
+      const bw = cmp.maxX - cmp.minX + 1, bh = cmp.maxY - cmp.minY + 1;
+      const fill = cmp.area / (bw * bh);
+      const touchesAllEdges = cmp.minX === 0 && cmp.minY === 0 && cmp.maxX === w - 1 && cmp.maxY === h - 1;
+      return cmp.area >= minArea && cmp.area <= N * 0.35 && fill >= 0.45 && !touchesAllEdges
+        && bw / bh < 12 && bh / bw < 12;
+    }).map(cmp => ({
+      x: cmp.minX / scale, y: cmp.minY / scale,
+      w: (cmp.maxX - cmp.minX + 1) / scale, h: (cmp.maxY - cmp.minY + 1) / scale
+    }));
+    return { boxes, threshold: thr };
+  }
+
+  /** Cluster 1-D values; returns index of cluster for each value, clusters ordered ascending. */
+  function cluster1D(values, tol) {
+    const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+    const result = new Array(values.length);
+    let k = -1, mean = -Infinity, n = 0;
+    for (const [v, i] of order) {
+      if (v - mean > tol) { k++; mean = v; n = 1; }
+      else { mean = (mean * n + v) / (n + 1); n++; }
+      result[i] = k;
+    }
+    return { index: result, count: k + 1 };
+  }
+  const median = (arr) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0; };
+
+  /** Map detected boxes to grid cells preserving the layout of the photo. */
+  function boxesToGrid(boxes) {
+    const mw = median(boxes.map(b => b.w)), mh = median(boxes.map(b => b.h));
+    const rows = cluster1D(boxes.map(b => b.y + b.h / 2), mh * 0.55);
+    const cols = cluster1D(boxes.map(b => b.x + b.w / 2), mw * 0.5);
+    return { cells: boxes.map((b, i) => ({ box: b, r: rows.index[i], c: cols.index[i] })), nRows: rows.count, nCols: cols.count, mw, mh };
+  }
+
+  function cropBrick(img, box) {
+    const maxW = 480;
+    const s = Math.min(1, maxW / box.w);
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(box.w * s)); cv.height = Math.max(1, Math.round(box.h * s));
+    cv.getContext('2d').drawImage(img, box.x, box.y, box.w, box.h, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', 0.85);
+  }
+
+  function readDetectOpts() {
+    return {
+      auto: $('autoThr').checked,
+      threshold: +$('thr').value,
+      maxSat: +$('sat').value,
+      sep: +$('sep').value,
+      minAreaPct: +$('minArea').value
+    };
+  }
+
+  function drawPreview(img, boxes) {
+    const cv = $('previewCanvas');
+    const s = Math.min(1, 600 / img.naturalWidth);
+    cv.width = Math.round(img.naturalWidth * s); cv.height = Math.round(img.naturalHeight * s);
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#22c55e';
+    for (const b of boxes) ctx.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
+    $('previewBox').hidden = false;
+  }
+
+  function runDetection() {
+    if (!sourceImage) return;
+    const opts = readDetectOpts();
+    const { boxes, threshold } = detectBricks(sourceImage, opts);
+    if (opts.auto) { $('thr').value = threshold; $('thrOut').textContent = threshold; }
+    drawPreview(sourceImage, boxes);
+    if (!boxes.length) {
+      setStatus('No white bricks found — try lowering the brightness threshold or the min brick size.');
+      return;
+    }
+    snapshot();
+    const { cells, nRows, nCols, mw, mh } = boxesToGrid(boxes);
+    // Cell size follows the brick shape from the photo.
+    const aspect = mw / mh;
+    state.cellW = 170;
+    state.cellH = Math.round(Math.max(50, Math.min(240, 170 / aspect + 0)));
+    state.cols = Math.max(nCols + 1, 6);
+    state.rows = Math.max(nRows + 1, 4);
+    state.bricks = []; images = {};
+    // Place in reading order so collisions push deterministically.
+    cells.sort((a, b) => a.r - b.r || a.c - b.c || a.box.x - b.box.x);
+    for (const cell of cells) {
+      const b = { id: newId(), r: -1, c: -1, text: '', color: '#000000', autoFont: true, fontSize: 18 };
+      images[b.id] = cropBrick(sourceImage, cell.box);
+      state.bricks.push(b);
+      const savedMode = state.pushMode; state.pushMode = 'right';
+      placeWithPush(b, cell.r, cell.c);
+      state.pushMode = savedMode;
+    }
+    selectedId = null;
+    syncControls(); render(); persist();
+    setStatus(`Detected ${boxes.length} brick${boxes.length === 1 ? '' : 's'} in ${nRows} row${nRows === 1 ? '' : 's'}. Click a brick to add text, drag to rearrange.`);
+  }
+
+  function loadImageSrc(src) {
+    const img = new Image();
+    img.onload = () => {
+      sourceImage = img;
+      $('redetectBtn').classList.remove('disabled');
+      runDetection();
+    };
+    img.onerror = () => setStatus('Could not read that image.');
+    img.src = src;
+  }
+
+  $('fileInput').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    setStatus('Detecting bricks…');
+    const reader = new FileReader();
+    reader.onload = () => loadImageSrc(reader.result);
+    reader.readAsDataURL(f);
+    e.target.value = '';
+  });
+
+  // Synthetic "photo" of paper bricks on a table for trying the tool.
+  function makeSamplePhoto() {
+    const W = 1400, H = 900;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#6b4a2f'); g.addColorStop(1, '#4a3220');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 60; i++) { // wood grain
+      ctx.strokeStyle = `rgba(0,0,0,${0.05 + Math.random() * 0.08})`;
+      ctx.lineWidth = 1 + Math.random() * 3;
+      ctx.beginPath(); const y = Math.random() * H;
+      ctx.moveTo(0, y); ctx.bezierCurveTo(W / 3, y + 20, 2 * W / 3, y - 20, W, y + 10); ctx.stroke();
+    }
+    const layout = [
+      [1, 1, 1, 0, 1],
+      [0, 1, 1, 1, 0],
+      [1, 0, 1, 1, 1],
+      [1, 1, 0, 0, 1]
+    ];
+    const labels = ['Research', 'Design', 'Prototype', 'Beta', 'Hiring', 'API v2', 'Docs', 'Pilot', 'Launch', 'Billing', 'Mobile', 'Scale', 'Partners', 'Review'];
+    let li = 0;
+    const bw = 200, bh = 110, sx = 120, sy = 110, px = 240, py = 180;
+    layout.forEach((row, r) => row.forEach((on, c) => {
+      if (!on) return;
+      const x = sx + c * px + (Math.random() - 0.5) * 24, y = sy + r * py + (Math.random() - 0.5) * 20;
+      ctx.save();
+      ctx.translate(x + bw / 2, y + bh / 2); ctx.rotate((Math.random() - 0.5) * 0.05);
+      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = `rgb(${240 + Math.random() * 12 | 0},${238 + Math.random() * 12 | 0},${232 + Math.random() * 12 | 0})`;
+      ctx.fillRect(-bw / 2, -bh / 2, bw, bh);
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = '#2b2b6b'; ctx.font = 'italic 26px "Comic Sans MS", cursive';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(labels[li++ % labels.length], 0, 0);
+      ctx.restore();
+    }));
+    return cv.toDataURL('image/jpeg', 0.9);
+  }
+  $('sampleBtn').addEventListener('click', () => { setStatus('Detecting bricks…'); loadImageSrc(makeSamplePhoto()); });
+  $('redetectBtn').addEventListener('click', runDetection);
+
+  // ------------------------------------------------------------------
+  // Controls wiring
+  // ------------------------------------------------------------------
+  function setStatus(msg) { $('status').textContent = msg; }
+
+  function syncControls() {
+    $('bgColor').value = state.bg;
+    $('gridColor').value = state.gridColor;
+    $('gridThick').value = state.gridThickness; $('gridThickOut').textContent = state.gridThickness;
+    $('showGrid').checked = state.showGrid;
+    $('cellW').value = state.cellW; $('cellWOut').textContent = state.cellW;
+    $('cellH').value = state.cellH; $('cellHOut').textContent = state.cellH;
+    $('gap').value = state.gap; $('gapOut').textContent = state.gap;
+    $('brickStyle').value = state.brickStyle;
+    $('pushMode').value = state.pushMode;
+  }
+
+  function bindRange(id, key, parse = Number) {
+    const el = $(id), out = $(id + 'Out');
+    el.addEventListener('input', () => {
+      if (out) out.textContent = el.value;
+      if (key) { state[key] = parse(el.value); render(); persist(); }
+    });
+  }
+  bindRange('cellW', 'cellW');
+  bindRange('cellH', 'cellH');
+  bindRange('gap', 'gap');
+  bindRange('gridThick', 'gridThickness');
+  bindRange('thr'); bindRange('sat'); bindRange('sep'); bindRange('minArea');
+  ['thr', 'sat', 'sep', 'minArea'].forEach(id => $(id).addEventListener('change', runDetection));
+  $('autoThr').addEventListener('change', () => { $('thr').disabled = $('autoThr').checked; runDetection(); });
+
+  $('bgColor').addEventListener('input', (e) => { state.bg = e.target.value; applyBoardVars(); persist(); });
+  $('gridColor').addEventListener('input', (e) => { state.gridColor = e.target.value; applyBoardVars(); persist(); });
+  $('showGrid').addEventListener('change', (e) => { state.showGrid = e.target.checked; applyBoardVars(); persist(); });
+  $('brickStyle').addEventListener('change', (e) => { state.brickStyle = e.target.value; render(); persist(); });
+  $('pushMode').addEventListener('change', (e) => { state.pushMode = e.target.value; persist(); });
+
+  function resizeGrid(cols, rows) {
+    // Never shrink below occupied cells.
+    const maxC = Math.max(-1, ...state.bricks.map(b => b.c)), maxR = Math.max(-1, ...state.bricks.map(b => b.r));
+    state.cols = Math.max(cols || 1, maxC + 1, 1);
+    state.rows = Math.max(rows || 1, maxR + 1, 1);
+    render(); persist();
+  }
+  $('colsIn').addEventListener('change', (e) => resizeGrid(+e.target.value, state.rows));
+  $('rowsIn').addEventListener('change', (e) => resizeGrid(state.cols, +e.target.value));
+
+  // Selected-brick panel
+  $('brickText').addEventListener('input', (e) => {
+    const b = byId(selectedId); if (!b) return;
+    b.text = e.target.value;
+    const el = brickEls.get(b.id); if (el) { el.firstChild.innerText = b.text; el.classList.toggle('has-text', !!b.text); fitText(el, b); }
+    syncBrickPanel(); persist();
+  });
+  $('fontColor').addEventListener('input', (e) => {
+    const b = byId(selectedId); if (!b) return;
+    b.color = e.target.value; render(); persist();
+  });
+  $('autoFont').addEventListener('change', (e) => {
+    const b = byId(selectedId); if (!b) return;
+    if (!e.target.checked && b._fitSize) b.fontSize = b._fitSize;
+    b.autoFont = e.target.checked; render(); persist();
+  });
+  $('fontSize').addEventListener('input', (e) => {
+    const b = byId(selectedId); if (!b) return;
+    b.fontSize = +e.target.value; $('fontSizeOut').textContent = b.fontSize; render(); persist();
+  });
+  document.querySelectorAll('[data-move]').forEach(btn => btn.addEventListener('click', () => {
+    const [dx, dy] = btn.dataset.move.split(',').map(Number);
+    nudgeSelected(dx, dy);
+  }));
+  $('delBtn').addEventListener('click', deleteSelected);
+  $('dupBtn').addEventListener('click', () => {
+    const src = byId(selectedId); if (!src) return;
+    const [nr, nc] = nextCell(src.r, src.c);
+    const copy = addBrick(nr, nc, { text: src.text, color: src.color, autoFont: src.autoFont, fontSize: src.fontSize });
+    if (images[src.id]) images[copy.id] = images[src.id];
+    render(); persist();
+  });
+  $('addBrickBtn').addEventListener('click', () => { const b = addBrick(); startEditing(b.id); });
+  $('clearBtn').addEventListener('click', () => {
+    if (!state.bricks.length || !confirm('Remove all bricks from the board?')) return;
+    snapshot(); state.bricks = []; images = {}; selectedId = null; render(); persist();
+  });
+  $('undoBtn').addEventListener('click', undo);
+
+  // ------------------------------------------------------------------
+  // Save / load / export
+  // ------------------------------------------------------------------
+  function download(name, href) {
+    const a = document.createElement('a'); a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  $('saveJsonBtn').addEventListener('click', () => {
+    const data = JSON.stringify({ version: 1, state, images }, (k, v) => k === '_fitSize' ? undefined : v);
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    download('roadmap.json', url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  $('loadJsonInput').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(txt => {
+      const data = JSON.parse(txt);
+      if (!data.state || !Array.isArray(data.state.bricks)) throw new Error('bad file');
+      snapshot();
+      state = Object.assign(defaultState(), data.state);
+      images = data.images || {};
+      selectedId = null; syncControls(); render(); persist();
+      setStatus('Roadmap loaded.');
+    }).catch(() => setStatus('That file is not a saved roadmap.'));
+    e.target.value = '';
+  });
+
+  function loadImg(src) {
+    return new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+  }
+  function wrapLines(ctx, text, maxW) {
+    const lines = [];
+    for (const para of text.split('\n')) {
+      let line = '';
+      for (const word of para.split(/(\s+)/)) {
+        const test = line + word;
+        if (ctx.measureText(test).width > maxW && line.trim()) { lines.push(line.trim()); line = word.trimStart(); }
+        else line = test;
+      }
+      lines.push(line.trim());
+    }
+    return lines;
+  }
+  $('exportPngBtn').addEventListener('click', async () => {
+    const dpr = 2;
+    const W = state.cols * state.cellW, H = state.rows * state.cellH;
+    const cv = document.createElement('canvas'); cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+    ctx.fillStyle = state.bg; ctx.fillRect(0, 0, W, H);
+    if (state.showGrid) {
+      ctx.fillStyle = state.gridColor; const t = state.gridThickness;
+      for (let c = 0; c <= state.cols; c++) ctx.fillRect(Math.min(c * state.cellW, W - t), 0, t, H);
+      for (let r = 0; r <= state.rows; r++) ctx.fillRect(0, Math.min(r * state.cellH, H - t), W, t);
+    }
+    const g = state.gap, bw = state.cellW - 2 * g, bh = state.cellH - 2 * g;
+    const font = getComputedStyle(document.body).fontFamily;
+    for (const b of state.bricks) {
+      const x = b.c * state.cellW + g, y = b.r * state.cellH + g;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#fbfbf8'; ctx.fillRect(x, y, bw, bh);
+      ctx.restore();
+      if (state.brickStyle === 'photo' && images[b.id]) {
+        const im = await loadImg(images[b.id]);
+        if (im) ctx.drawImage(im, x, y, bw, bh);
+      }
+      if (b.text) {
+        if (state.brickStyle === 'photo' && images[b.id]) { ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(x + 6, y + 6, bw - 12, bh - 12); }
+        const el = brickEls.get(b.id);
+        const size = el ? parseFloat(el.firstChild.style.fontSize) || 14 : 14;
+        ctx.font = `600 ${size}px ${font}`;
+        ctx.fillStyle = b.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const lines = wrapLines(ctx, b.text, bw - 12);
+        const lh = size * 1.15;
+        let ty = y + bh / 2 - (lines.length - 1) * lh / 2;
+        ctx.save(); ctx.beginPath(); ctx.rect(x, y, bw, bh); ctx.clip();
+        for (const ln of lines) { ctx.fillText(ln, x + bw / 2, ty); ty += lh; }
+        ctx.restore();
+      }
+    }
+    download('roadmap.png', cv.toDataURL('image/png'));
+  });
+
+  // ------------------------------------------------------------------
+  // Boot
+  // ------------------------------------------------------------------
+  restore();
+  syncControls();
+  render();
+  if (state.bricks.length) setStatus('Restored your last roadmap.');
+  // Expose for debugging / tests
+  window.__planner = { get state() { return state; }, moveBrick, addBrick, runDetection };
+})();
+</script>
+</body>
+</html>
