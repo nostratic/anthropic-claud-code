@@ -6,11 +6,15 @@
 <title>Brick Roadmap Planner</title>
 <style>
   :root {
+    --page: #f1f3f7;
     --panel: #ffffff;
-    --panel-border: #e3e5ea;
+    --panel-border: #e1e4eb;
+    --hover: #f5f7fb;
     --ink: #1d2230;
-    --muted: #6b7283;
+    --muted: #677086;
     --accent: #3b6ef5;
+    --danger: #c62828;
+    --scrim: rgba(15,20,32,.55);
     --board-bg: #2f3b52;
     --grid-color: #b8bcc6;
     --grid-thickness: 1px;
@@ -18,12 +22,25 @@
     --cell-h: 100px;
     --gap: 8px;
   }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #12151c; --panel: #1b1f29; --panel-border: #2c3240; --hover: #242a36;
+      --ink: #e7eaf1; --muted: #98a0b3; --accent: #6b93ff; --danger: #ff7a7a; --scrim: rgba(0,0,0,.65);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #12151c; --panel: #1b1f29; --panel-border: #2c3240; --hover: #242a36;
+    --ink: #e7eaf1; --muted: #98a0b3; --accent: #6b93ff; --danger: #ff7a7a; --scrim: rgba(0,0,0,.65);
+    color-scheme: dark;
+  }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; }
   body {
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     color: var(--ink);
-    background: #f3f4f7;
+    background: var(--page);
     display: grid;
     grid-template-columns: 330px 1fr;
     grid-template-rows: auto 1fr;
@@ -58,18 +75,20 @@
   .row output { width: 44px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
   input[type=color] { width: 36px; height: 26px; padding: 0; border: 1px solid var(--panel-border); border-radius: 4px; background: none; }
   select, input[type=number], textarea {
-    font: inherit; padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 6px; background: #fff; color: var(--ink);
+    font: inherit; padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 6px; background: var(--panel); color: var(--ink);
   }
   textarea { width: 100%; min-height: 70px; resize: vertical; }
   button {
     font: inherit; cursor: pointer;
     padding: 6px 10px; border-radius: 6px;
-    border: 1px solid var(--panel-border); background: #fff; color: var(--ink);
+    border: 1px solid var(--panel-border); background: var(--panel); color: var(--ink);
   }
-  button:hover { border-color: #c3c7d0; background: #f7f8fa; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { border-color: var(--muted); background: var(--hover); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
   button.primary:hover { filter: brightness(1.05); }
-  button.danger { color: #c62828; }
+  button.danger { color: var(--danger); }
+  button.danger.armed { background: var(--danger); border-color: var(--danger); color: var(--panel); }
   .btns { display: flex; flex-wrap: wrap; gap: 6px; }
   .pad { display: grid; grid-template-columns: repeat(3, 36px); gap: 4px; justify-content: start; }
   .pad button { padding: 4px 0; }
@@ -144,6 +163,11 @@
   }
   #emptyState div { max-width: 420px; }
 
+  #modal { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  #modal .card { background: var(--panel); color: var(--ink); border-radius: 10px; padding: 16px; max-width: min(900px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 10px; }
+  #modal .card img { max-width: 100%; border-radius: 4px; }
+  #modal textarea { min-height: 220px; font: 12px/1.4 ui-monospace, monospace; }
+  @media (prefers-reduced-motion: reduce) { .brick { transition: none; } }
   @media (max-width: 760px) {
     body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "top" "side" "main"; }
     aside { max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--panel-border); }
@@ -239,6 +263,12 @@
     <p>Upload a photo of your paper roadmap (white paper bricks on a darker surface works best), or try the sample photo.</p>
   </div></div>
 </main>
+
+<div id="modal" hidden><div class="card">
+  <strong id="modalTitle"></strong>
+  <div id="modalBody"></div>
+  <div class="btns"><button id="modalCopy" hidden>Copy</button><button id="modalClose" class="primary">Close</button></div>
+</div></div>
 
 <script>
 (() => {
@@ -950,7 +980,14 @@
   });
   $('addBrickBtn').addEventListener('click', () => { const b = addBrick(); startEditing(b.id); });
   $('clearBtn').addEventListener('click', () => {
-    if (!state.bricks.length || !confirm('Remove all bricks from the board?')) return;
+    const btn = $('clearBtn');
+    if (!state.bricks.length) return;
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed'); btn.textContent = 'Click again to clear';
+      clearTimeout(btn._t); btn._t = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'Clear board'; }, 3000);
+      return;
+    }
+    btn.classList.remove('armed'); btn.textContent = 'Clear board';
     snapshot(); state.bricks = []; images = {}; selectedId = null; render(); persist();
   });
   $('undoBtn').addEventListener('click', undo);
@@ -958,12 +995,31 @@
   // ------------------------------------------------------------------
   // Save / load / export
   // ------------------------------------------------------------------
+  const embedded = (() => { try { return window.top !== window.self; } catch (_) { return true; } })();
+  function showModal(title, bodyEl, copyText) {
+    $('modalTitle').textContent = title;
+    $('modalBody').replaceChildren(bodyEl);
+    $('modalCopy').hidden = !copyText;
+    $('modalCopy').onclick = () => {
+      navigator.clipboard.writeText(copyText).then(() => { $('modalCopy').textContent = 'Copied'; })
+        .catch(() => { const ta = bodyEl.tagName === 'TEXTAREA' ? bodyEl : null; if (ta) { ta.focus(); ta.select(); } });
+    };
+    $('modalCopy').textContent = 'Copy';
+    $('modal').hidden = false;
+  }
+  $('modalClose').addEventListener('click', () => { $('modal').hidden = true; });
+  $('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') $('modal').hidden = true; });
   function download(name, href) {
     const a = document.createElement('a'); a.href = href; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
   }
   $('saveJsonBtn').addEventListener('click', () => {
     const data = JSON.stringify({ version: 1, state, images }, (k, v) => k === '_fitSize' ? undefined : v);
+    if (embedded) {
+      const ta = document.createElement('textarea'); ta.id = 'jsonOut'; ta.readOnly = true; ta.value = data;
+      showModal('Copy this text and save it as roadmap.json. Load it later with Load JSON.', ta, data);
+      return;
+    }
     const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
     download('roadmap.json', url);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1035,7 +1091,13 @@
         ctx.restore();
       }
     }
-    download('roadmap.png', cv.toDataURL('image/png'));
+    const png = cv.toDataURL('image/png');
+    if (embedded) {
+      const img = new Image(); img.src = png; img.alt = 'Exported roadmap';
+      showModal('Right-click (or long-press) the image and choose Save image.', img);
+      return;
+    }
+    download('roadmap.png', png);
   });
 
   // ------------------------------------------------------------------
