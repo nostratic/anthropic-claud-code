@@ -37,6 +37,19 @@ A full-stack collaborative conflict resolution platform with visual roadmaps, AI
 - Progress bar and points summary on roadmap canvas
 - Sub-tasks for each step
 
+### Mind Maps (`/maps`)
+A full mind-mapping editor in the spirit of MindMeister:
+- **Create** blank maps or start from templates (brainstorm, project plan, meeting notes, SWOT, org chart); import outlines / Markdown / JSON
+- **Keyboard-first editing** — `Tab` subtopic, `Enter` sibling, `Shift+Tab` insert parent, type to edit, arrows to navigate, `Space` to fold, `Ctrl+Z / Ctrl+Shift+Z` undo/redo, copy/cut/paste/duplicate branches (press `?` in the editor for the full list)
+- **Drag & drop** topics to re-parent, reorder, or move a branch to the other side of the map
+- **Layouts**: balanced mind map, right, left, org chart · **Themes**: Classic, Fresh, Ocean, Sunset, Minimal, Midnight
+- **Topic extras**: colors, bold/italic, sizes, shapes, emoji icons, notes, links, images, tasks (done, progress, priority, due date)
+- **Outline view**, search (`Ctrl+F`), zoom/pan/fit, collapsible branches
+- **Autosave** with version checks, **sharing** with other users (can edit / can view) and live refresh of collaborators' changes
+- **Export** to PNG, SVG, Markdown, plain text or `.mindmap.json`
+
+Editor code lives in `components/mindmap/` (UI) and `lib/mindmap/` (data model, layout engine, themes, exporters).
+
 ## Tech Stack
 
 - **Framework**: Next.js 14 (App Router)

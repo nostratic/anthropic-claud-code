@@ -21,6 +21,8 @@ model User {
   statusChanges    NodeStatusHistory[]
   sharedRoadmapsTo RoadmapShare[]        @relation("SharedTo")
   sharedRoadmapsBy RoadmapShare[]        @relation("SharedBy")
+  mindMaps         MindMap[]             @relation("MindMapOwner")
+  mindMapShares    MindMapCollaborator[]
 }
 
 model Conflict {
@@ -151,4 +153,35 @@ model RoadmapShare {
   sharedTo User    @relation("SharedTo", fields: [sharedToId], references: [id])
 
   @@unique([roadmapId, sharedToId])
+}
+
+// ───────────────────────── Mind maps ─────────────────────────
+
+model MindMap {
+  id        String   @id @default(cuid())
+  title     String
+  // Full idea tree, serialized as JSON (see lib/mindmap/types.ts)
+  data      String
+  theme     String   @default("classic")
+  layout    String   @default("mindmap")
+  version   Int      @default(1)
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner         User                  @relation("MindMapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators MindMapCollaborator[]
+}
+
+model MindMapCollaborator {
+  id        String   @id @default(cuid())
+  mapId     String
+  userId    String
+  role      String   @default("editor") // editor | viewer
+  createdAt DateTime @default(now())
+
+  map  MindMap @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([mapId, userId])
 }

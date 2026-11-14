@@ -9,6 +9,7 @@ import {
   Plus,
   LogOut,
   ChevronDown,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -21,6 +22,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/conflicts/new", label: "New Conflict", icon: Plus },
+    { href: "/maps", label: "Mind Maps", icon: Network },
   ];
 
   return (
